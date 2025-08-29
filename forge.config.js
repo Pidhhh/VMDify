@@ -4,24 +4,65 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    name: "VMDify",
+    executableName: "VMDify",
+    icon: "./assets/icon", // We'll need to add an icon later
+    extraResource: [
+      "./python-worker" // Include Python backend in the package
+    ],
+    ignore: [
+      /\.git/,
+      /node_modules\/.*\/test/,
+      /\.vscode/,
+      /\.github/,
+      /python-worker\/venv/, // Exclude Python virtual environment
+      /python-worker\/__pycache__/,
+      /python-worker\/\.pytest_cache/
+    ]
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        name: 'VMDify',
+        setupExe: 'VMDify-Setup.exe',
+        setupIcon: './assets/icon.ico', // We'll add this later
+        noMsi: true,
+        certificateFile: '', // Add code signing certificate if available
+        certificatePassword: process.env.CERTIFICATE_PASSWORD || ''
+      },
     },
     {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin'],
+      config: {
+        name: 'VMDify'
+      }
     },
     {
       name: '@electron-forge/maker-deb',
-      config: {},
+      config: {
+        options: {
+          name: 'vmdify',
+          productName: 'VMDify',
+          description: 'AI-powered video to MMD motion capture application',
+          maintainer: 'Pidhhh',
+          homepage: 'https://github.com/Pidhhh/VMDify'
+        }
+      },
     },
     {
       name: '@electron-forge/maker-rpm',
-      config: {},
+      config: {
+        options: {
+          name: 'vmdify',
+          productName: 'VMDify',
+          description: 'AI-powered video to MMD motion capture application',
+          maintainer: 'Pidhhh',
+          homepage: 'https://github.com/Pidhhh/VMDify'
+        }
+      },
     },
   ],
   plugins: [

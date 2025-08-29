@@ -1,0 +1,25 @@
+# Core web server
+fastapi
+uvicorn[standard]
+websockets
+python-multipart
+
+# Core AI and math libraries
+# NOTE: For GPU support, install PyTorch separately by following the
+# official instructions at https://pytorch.org/get-started/locally/
+torch
+torchvision
+torchaudio
+
+# Computer Vision and utilities
+opencv-python-headless
+numpy
+h5py
+
+# MMPose for 2D Pose Estimation (will be added later)
+# mmpose
+# mmengine
+
+# Additional utilities
+python-dateutil
+imageio

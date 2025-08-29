@@ -27,5 +27,43 @@
  */
 
 import './index.css';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import MMDPreview from './components/MMDPreview';
+import BackendConnection from './components/BackendConnection';
+import VideoInput from './components/VideoInput';
 
-console.log('👋 This message is being logged by "renderer.js", included via Vite');
+const App = () => {
+    // Using your specific PMX model
+    const modelPath = './models/SakamataAlter.pmx';
+
+    const handleVideoSelected = (file) => {
+        console.log('Video selected:', file.name);
+        // TODO: This will trigger the AI pipeline
+    };
+
+    return (
+        <div className="app-container">
+            <h1>VMDify - AI Motion Capture</h1>
+            
+            <div className="main-content">
+                <div className="preview-section">
+                    <h2>3D Model Preview</h2>
+                    <MMDPreview modelPath={modelPath} />
+                </div>
+                
+                <div className="control-section">
+                    <VideoInput onVideoSelected={handleVideoSelected} />
+                    <BackendConnection />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
