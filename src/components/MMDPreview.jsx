@@ -3,11 +3,24 @@ import * as THREE from 'three';
 import { MMDLoader } from 'three-stdlib';
 import { OrbitControls } from 'three-stdlib';
 
-const MMDPreview = ({ modelPath, motionData, trajectory, isPlaying }) => {
+const MMDPreview = ({ modelPath, motionData, trajectory, isPlaying, orient, fps=30, pose2d }) => {
   const [loadingStatus, setLoadingStatus] = useState('Initializing 3D scene...');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const mountRef = useRef(null);
+  const trajRef = useRef(null);
+  const playRef = useRef(false);
+  const fpsRef = useRef(30);
+  const orientRef = useRef(null);
+  const poseRef = useRef(null);
+  const boneMapRef = useRef({});
+
+  // Keep latest values in refs so animate loop reads them without re-creating scene
+  useEffect(() => { trajRef.current = trajectory; }, [trajectory]);
+  useEffect(() => { playRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { orientRef.current = orient; }, [orient]);
+  useEffect(() => { if (fps && Number.isFinite(fps)) fpsRef.current = fps; }, [fps]);
+  useEffect(() => { poseRef.current = pose2d; }, [pose2d]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -155,7 +168,7 @@ const MMDPreview = ({ modelPath, motionData, trajectory, isPlaying }) => {
     scene.add(plane);
     
     // Try loading PMX model; if it fails, keep placeholder
-    const loader = new MMDLoader();
+  const loader = new MMDLoader();
     // Ensure resources resolve from public/models and its textures
     try {
       loader.setPath('/models/');
@@ -176,6 +189,38 @@ const MMDPreview = ({ modelPath, motionData, trajectory, isPlaying }) => {
             group.remove(placeholderGroup);
           }
           group.add(mmd);
+          // Build a simple bone map (supports JP + EN variants)
+          const nameVariants = {
+            leftUpperArm: ['左腕', 'UpperArm_L', 'Arm_L', 'Left arm', 'Left Arm'],
+            leftLowerArm: ['左ひじ', '左肘', 'LowerArm_L', 'Elbow_L', 'Left elbow', 'Left Elbow'],
+            rightUpperArm: ['右腕', 'UpperArm_R', 'Arm_R', 'Right arm', 'Right Arm'],
+            rightLowerArm: ['右ひじ', '右肘', 'LowerArm_R', 'Elbow_R', 'Right elbow', 'Right Elbow'],
+            leftUpperLeg: ['左足', '左太もも', 'UpperLeg_L', 'Leg_L', 'Left leg', 'Left Leg'],
+            leftLowerLeg: ['左ひざ', '左膝', 'LowerLeg_L', 'Knee_L', 'Left knee', 'Left Knee'],
+            rightUpperLeg: ['右足', '右太もも', 'UpperLeg_R', 'Leg_R', 'Right leg', 'Right Leg'],
+            rightLowerLeg: ['右ひざ', '右膝', 'LowerLeg_R', 'Knee_R', 'Right knee', 'Right Knee'],
+            neck: ['首', 'Neck'],
+            head: ['頭', 'Head']
+          };
+          const findBone = (root, candidates) => {
+            for (const nm of candidates) {
+              const obj = root.getObjectByName(nm);
+              if (obj) return obj;
+            }
+            return null;
+          };
+          const bones = {};
+          bones.leftUpperArm = findBone(mmd, nameVariants.leftUpperArm);
+          bones.leftLowerArm = findBone(mmd, nameVariants.leftLowerArm);
+          bones.rightUpperArm = findBone(mmd, nameVariants.rightUpperArm);
+          bones.rightLowerArm = findBone(mmd, nameVariants.rightLowerArm);
+          bones.leftUpperLeg = findBone(mmd, nameVariants.leftUpperLeg);
+          bones.leftLowerLeg = findBone(mmd, nameVariants.leftLowerLeg);
+          bones.rightUpperLeg = findBone(mmd, nameVariants.rightUpperLeg);
+          bones.rightLowerLeg = findBone(mmd, nameVariants.rightLowerLeg);
+          bones.neck = findBone(mmd, nameVariants.neck);
+          bones.head = findBone(mmd, nameVariants.head);
+          boneMapRef.current = bones;
           setLoadingStatus('Model loaded successfully!');
           setIsLoading(false);
           console.log('MMD model loaded:', mmd);
@@ -201,24 +246,112 @@ const MMDPreview = ({ modelPath, motionData, trajectory, isPlaying }) => {
     // Simple animation for the placeholder
     let animationTime = 0;
     let playIndex = 0;
+    let lastTimeMs = performance.now();
+    let accum = 0; // ms
+    // Retarget helpers
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const toQuat = (rx, ry, rz) => new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'XYZ'));
+    const slerpTo = (bone, qTarget, alpha=0.25) => {
+      if (!bone) return;
+      bone.quaternion.slerp(qTarget, alpha);
+      bone.updateMatrixWorld();
+    };
+    const retargetFromPose2D = (kps) => {
+      if (!kps) return;
+      // Indices per MediaPipe
+      const idx = { LS:11, RS:12, LE:13, RE:14, LW:15, RW:16, LH:23, RH:24, LK:25, RK:26, LA:27, RA:28 };
+      const get = (i) => (kps[i] || [0.5,0.5,0.0]);
+      const v2 = (a, b) => ({ x: (b[0]-a[0]), y: (a[1]-b[1]) }); // screen up-positive
+      const ang = (v, sx=0.35, sy=0.35) => ({ yaw: Math.atan2(v.x, sx), pitch: Math.atan2(v.y, sy) });
+      const L = boneMapRef.current;
+      // Arms
+      const ls = get(idx.LS), le = get(idx.LE), lw = get(idx.LW);
+      const rs = get(idx.RS), re = get(idx.RE), rw = get(idx.RW);
+      const vLUp = v2(ls, le), aLUp = ang(vLUp);
+      const vLLow = v2(le, lw), aLLow = ang(vLLow);
+      const vRUp = v2(rs, re), aRUp = ang(vRUp);
+      const vRLow = v2(re, rw), aRLow = ang(vRLow);
+      const upScale = 0.9, lowScale = 1.1;
+      const qLUp = toQuat(clamp(aLUp.pitch*upScale, -1.2, 1.2), clamp(aLUp.yaw*upScale, -1.2, 1.2), 0);
+      const qLLow = toQuat(clamp(aLLow.pitch*lowScale, -1.5, 1.5), clamp(aLLow.yaw*0.6, -0.8, 0.8), 0);
+      const qRUp = toQuat(clamp(aRUp.pitch*upScale, -1.2, 1.2), clamp(aRUp.yaw*upScale, -1.2, 1.2), 0);
+      const qRLow = toQuat(clamp(aRLow.pitch*lowScale, -1.5, 1.5), clamp(aRLow.yaw*0.6, -0.8, 0.8), 0);
+      slerpTo(L.leftUpperArm, qLUp, 0.25);
+      slerpTo(L.leftLowerArm, qLLow, 0.25);
+      slerpTo(L.rightUpperArm, qRUp, 0.25);
+      slerpTo(L.rightLowerArm, qRLow, 0.25);
+      // Legs (pitch dominant)
+      const lh = get(idx.LH), lk = get(idx.LK), la = get(idx.LA);
+      const rh = get(idx.RH), rk = get(idx.RK), ra = get(idx.RA);
+      const vLThigh = v2(lh, lk), aLThigh = ang(vLThigh, 0.4, 0.4);
+      const vLShin = v2(lk, la), aLShin = ang(vLShin, 0.35, 0.35);
+      const vRThigh = v2(rh, rk), aRThigh = ang(vRThigh, 0.4, 0.4);
+      const vRShin = v2(rk, ra), aRShin = ang(vRShin, 0.35, 0.35);
+      const qLThigh = toQuat(clamp(aLThigh.pitch, -1.0, 1.0), clamp(aLThigh.yaw*0.4, -0.6, 0.6), 0);
+      const qLShin = toQuat(clamp(aLShin.pitch, -1.2, 1.2), clamp(aLShin.yaw*0.3, -0.5, 0.5), 0);
+      const qRThigh = toQuat(clamp(aRThigh.pitch, -1.0, 1.0), clamp(aRThigh.yaw*0.4, -0.6, 0.6), 0);
+      const qRShin = toQuat(clamp(aRShin.pitch, -1.2, 1.2), clamp(aRShin.yaw*0.3, -0.5, 0.5), 0);
+      slerpTo(L.leftUpperLeg, qLThigh, 0.25);
+      slerpTo(L.leftLowerLeg, qLShin, 0.25);
+      slerpTo(L.rightUpperLeg, qRThigh, 0.25);
+      slerpTo(L.rightLowerLeg, qRShin, 0.25);
+      // Head/neck from orient if available
+      const curOrient = orientRef.current;
+      if (curOrient && (L.neck || L.head)) {
+        const yaw = curOrient.head?.yaw || 0;
+        const pitch = curOrient.head?.pitch || 0;
+        const qHead = toQuat(clamp(pitch, -0.6, 0.6), clamp(yaw, -0.8, 0.8), 0);
+        slerpTo(L.neck, qHead, 0.2);
+        slerpTo(L.head, qHead, 0.2);
+      }
+    };
+
     const animate = () => {
       requestAnimationFrame(animate);
-      
-      animationTime += 0.01;
 
-      // Drive from trajectory if available and isPlaying
-      if (Array.isArray(trajectory) && trajectory.length > 0 && isPlaying) {
-        // simple frame stepping
-        const step = trajectory[Math.min(playIndex, trajectory.length - 1)];
-        if (step && Array.isArray(step.pos)) {
-          const [x, y, z] = step.pos;
-          group.position.set(x, Math.max(0, y) + 0.0, z);
+      const now = performance.now();
+      const dt = now - lastTimeMs;
+      lastTimeMs = now;
+      accum += dt;
+
+      animationTime += dt * 0.001;
+
+      // Drive from trajectory if available and isPlaying, at the video FPS
+      const curTraj = trajRef.current;
+      const curPlay = playRef.current;
+      const targetFrameMs = 1000 / Math.max(1, fpsRef.current);
+      if (Array.isArray(curTraj) && curTraj.length > 0 && curPlay) {
+        while (accum >= targetFrameMs) {
+          const step = curTraj[Math.min(playIndex, curTraj.length - 1)];
+          if (step && Array.isArray(step.pos)) {
+            // Map detection coords (x right, y up, z forward) to Three's (x right, y up, z forward)
+            // If your pipeline z forward matches camera-in, but Three's camera looks -z, keep the sign consistent with your scene
+            const [x, y, z] = step.pos;
+            // Flip Z if camera faces -Z so forward movement is visible
+            group.position.set(x, Math.max(0, y), -z);
+          }
+          const curOrient = orientRef.current;
+          if (curOrient && curOrient.body) {
+            const yaw = curOrient.body.yaw || 0;
+            const pitch = curOrient.body.pitch || 0;
+            // Apply body yaw/pitch on the container; heads will be bone-level later
+            group.rotation.set(pitch, yaw, 0);
+          }
+          // Retarget limbs from latest 2D pose
+          if (poseRef.current) {
+            retargetFromPose2D(poseRef.current);
+          }
+          playIndex += 1;
+          accum -= targetFrameMs;
+          if (playIndex >= curTraj.length) {
+            // Hold on last available frame; continue when new frames arrive
+            playIndex = Math.max(0, curTraj.length - 1);
+            accum = 0;
+            break;
+          }
         }
-        playIndex = (playIndex + 1) % trajectory.length;
       } else {
-        // Gentle idle motion when not playing
-        group.position.y = Math.sin(animationTime) * 0.2;
-        group.rotation.y = Math.sin(animationTime * 0.5) * 0.1;
+        // Hold last pose when not playing to avoid random motion
       }
       
       controls.update();
@@ -243,9 +376,23 @@ const MMDPreview = ({ modelPath, motionData, trajectory, isPlaying }) => {
         if (currentMount && renderer.domElement.parentNode === currentMount) {
             currentMount.removeChild(renderer.domElement);
         }
-        renderer.dispose();
+        try {
+          scene.traverse((obj) => {
+            if (obj.isMesh) {
+              if (obj.geometry) obj.geometry.dispose();
+              if (obj.material) {
+                const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                mats.forEach((m) => {
+                  if (m.map) m.map.dispose();
+                  if (m.dispose) m.dispose();
+                });
+              }
+            }
+          });
+          renderer.dispose();
+        } catch (_) {}
     };
-  }, [modelPath, trajectory, isPlaying]);
+  }, [modelPath]);
 
   return (
     <div className="relative w-full h-full min-h-500 bg-dark rounded-lg overflow-hidden">

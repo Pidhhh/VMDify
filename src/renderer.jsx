@@ -4,13 +4,18 @@ import ReactDOM from 'react-dom/client';
 import MMDPreview from './components/MMDPreview';
 import BackendConnection from './components/BackendConnection';
 import VideoInput from './components/VideoInput';
+import VideoPreview from './components/VideoPreview';
 
 const App = () => {
     const [selectedVideo, setSelectedVideo] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [progressData, setProgressData] = useState(null);
     const [trajectory, setTrajectory] = useState(null);
+    const [orient, setOrient] = useState(null);
+    const [pose2d, setPose2d] = useState(null);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [fps, setFps] = useState(30);
+    const [latestFrameB64, setLatestFrameB64] = useState(null);
     
     // Using your specific PMX model
     const modelPath = '/models/SakamataAlter.pmx';
@@ -22,6 +27,11 @@ const App = () => {
 
     const handleProcessingStart = () => {
         setIsProcessing(true);
+        // Reset previous state for a clean new run
+        setTrajectory([]);
+        setOrient(null);
+        setLatestFrameB64(null);
+        setIsPlaying(false);
     };
 
     const handleProcessingComplete = useCallback((result) => {
@@ -29,6 +39,7 @@ const App = () => {
         if (result && result.pipeline_result) {
             const traj = result.pipeline_result.preview_trajectory;
             setTrajectory(traj || null);
+            if (typeof result.pipeline_result.fps === 'number') setFps(result.pipeline_result.fps);
             setProgressData(result.pipeline_result);
         }
     }, []);
@@ -36,9 +47,36 @@ const App = () => {
     const handleJobComplete = useCallback((payload) => {
         // From websocket: job_complete
         if (!payload) return;
-        setTrajectory(payload.preview_trajectory || null);
-        setIsPlaying(true);
+    setTrajectory(payload.preview_trajectory || null);
+    if (typeof payload.fps === 'number') setFps(payload.fps);
+    setIsPlaying(true);
     }, []);
+
+    const handleFrame = useCallback((frameMsg) => {
+        if (!frameMsg || typeof frameMsg.frame !== 'number') return;
+        const rt = frameMsg.root_translation || [0,0,0];
+        if (frameMsg.image) {
+            setLatestFrameB64(frameMsg.image);
+            if (!isPlaying) setIsPlaying(true);
+        }
+        setTrajectory(prev => {
+            const next = Array.isArray(prev) ? [...prev] : [];
+            const f = frameMsg.frame;
+            // Append or fill sequentially; ignore wildly out-of-order frames
+            if (f <= next.length) {
+                next[f] = { frame: f, pos: [Number(rt[0])||0, Number(rt[1])||0, Number(rt[2])||0] };
+            } else if (f === next.length) {
+                next.push({ frame: f, pos: [Number(rt[0])||0, Number(rt[1])||0, Number(rt[2])||0] });
+            }
+            return next;
+        });
+        if (frameMsg.orient) {
+            setOrient(frameMsg.orient);
+        }
+        if (frameMsg.pose2d) {
+            setPose2d(frameMsg.pose2d);
+        }
+    }, [isPlaying]);
 
     return (
         <div className="min-h-screen bg-dark text-white flex flex-col">
@@ -97,7 +135,7 @@ const App = () => {
                                                         </div>
                         </div>
                         <div className="flex-1">
-                                                        <MMDPreview modelPath={modelPath} motionData={progressData} trajectory={trajectory} isPlaying={isPlaying} />
+                            <MMDPreview modelPath={modelPath} motionData={progressData} trajectory={trajectory} isPlaying={isPlaying} orient={orient} fps={fps} pose2d={pose2d} />
                         </div>
                     </div>
                 </div>
@@ -115,30 +153,15 @@ const App = () => {
                         />
                     </div>
 
-                    {/* Progress Section */}
-                    {isProcessing && (
-                        <div className="p-6 border-b border-gray-700 fade-in">
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-primary font-semibold">Processing Pipeline</h3>
-                                    <div className="text-xs text-gray-400">Stage 2/6</div>
-                                </div>
-                                <div className="space-y-2">
-                                    <div className="flex" style={{justifyContent: 'space-between', fontSize: '0.875rem'}}>
-                                        <span>2D Pose Detection</span>
-                                        <span className="text-primary">45%</span>
-                                    </div>
-                                    <div className="progress-bar">
-                                        <div className="progress-fill" style={{width: '45%'}}></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    {/* Live Video/Dets Preview */}
+                    <div className="p-6 border-b border-gray-700 fade-in">
+                        <h3 className="text-primary font-semibold mb-3">Preview: Video + Detections</h3>
+                        <VideoPreview frameB64={latestFrameB64} />
+                    </div>
 
                     {/* Backend Connection */}
                     <div className="p-6 flex-1 overflow-y-auto fade-in">
-                        <BackendConnection onJobComplete={handleJobComplete} />
+                        <BackendConnection onJobComplete={handleJobComplete} onFrame={handleFrame} />
                     </div>
 
                     {/* Bottom Actions */}

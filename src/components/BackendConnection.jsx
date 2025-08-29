@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-const BackendConnection = ({ onJobComplete }) => {
+const BackendConnection = ({ onJobComplete, onFrame }) => {
   const [connectionStatus, setConnectionStatus] = useState('Disconnected');
   const [messages, setMessages] = useState([]);
   const [backendInfo, setBackendInfo] = useState(null);
@@ -48,6 +48,9 @@ const BackendConnection = ({ onJobComplete }) => {
         const data = JSON.parse(event.data);
         if (data?.type === 'job_complete' && onJobComplete) {
           onJobComplete(data);
+        }
+        if (data?.type === 'frame' && onFrame) {
+          onFrame(data);
         }
         setMessages(prev => [...prev, { 
           type: 'received', 
@@ -132,6 +135,8 @@ const BackendConnection = ({ onJobComplete }) => {
 
   useEffect(() => {
     checkBackendHealth();
+  // Auto-connect to the backend WebSocket for live streaming
+  connectWebSocket();
   }, []);
 
   return (

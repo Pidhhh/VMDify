@@ -81,7 +81,16 @@ async def process_video(video: UploadFile = File(...)):
         
         # Start the AI pipeline (placeholder - will run in background)
         # For now, just simulate processing
-        pipeline_result = await pipeline.process_video(temp_file_path, job_id)
+        async def on_progress(payload: Dict):
+            payload = dict(payload)
+            payload.update({'job_id': job_id})
+            for ws in list(active_connections):
+                try:
+                    await ws.send_text(json.dumps(payload))
+                except Exception:
+                    pass
+
+        pipeline_result = await pipeline.process_video(temp_file_path, job_id, on_progress)
         
         # Optionally broadcast a completion message over any active websockets
         try:
@@ -91,7 +100,8 @@ async def process_video(video: UploadFile = File(...)):
                 "output_path": pipeline_result.get("output_path"),
                 "debug_json_path": pipeline_result.get("debug_json_path"),
                 "preview_trajectory": pipeline_result.get("preview_trajectory"),
-                "total_frames": pipeline_result.get("total_frames", 0)
+                "total_frames": pipeline_result.get("total_frames", 0),
+                "fps": pipeline_result.get("fps", 30.0)
             }
             for ws in list(active_connections):
                 await ws.send_text(json.dumps(payload))

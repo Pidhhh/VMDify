@@ -93,3 +93,6 @@ out/
 
 # Python virtual environment
 venv/
+
+# Exclude Outputs folder
+Outputs/

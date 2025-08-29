@@ -15,6 +15,7 @@ torchaudio
 opencv-python-headless
 numpy
 h5py
+mediapipe
 
 # MMPose for 2D Pose Estimation (will be added later)
 # mmpose
