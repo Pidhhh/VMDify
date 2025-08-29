@@ -17,6 +17,12 @@ numpy
 h5py
 mediapipe
 
+# Enhanced processing libraries
+scipy
+scikit-learn
+filterpy
+transforms3d
+
 # MMPose for 2D Pose Estimation (will be added later)
 # mmpose
 # mmengine

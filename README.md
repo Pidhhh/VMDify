@@ -1,39 +1,77 @@
-# VMDify Application Icons
+# VMDify - AI-Powered Motion Capture for MMD
 
-Place the following icon files in this directory:
+> ⚠️ **UNDER ACTIVE DEVELOPMENT** ⚠️  
+> This project is currently in development and may contain bugs or incomplete features. Contributions and testing are welcome!
 
-- `icon.ico` - Windows icon (256x256, .ico format)
-- `icon.png` - General purpose icon (512x512, .png format)
-- `icon.icns` - macOS icon (512x512, .icns format)
+**VMDify** is a cross-platform desktop application that converts **video or webcam input** into smooth **MikuMikuDance (.vmd)** motion files using modern AI pose estimation and motion refinement techniques.
 
-## Icon Requirements
+## 🎯 What VMDify Does
 
-### Windows (.ico)
+**VMDify** transforms ordinary videos into professional-quality MMD animations:
 
-- Size: 256x256 pixels
-- Format: ICO with multiple sizes (16, 32, 48, 64, 128, 256)
-- Used for: Executable file, taskbar, window title
+- **📹 Input**: Video files or live webcam feed
+- **🤖 AI Processing**: Advanced pose estimation with multiple AI models (MediaPipe, VIBE, HybrIK)
+- **✨ Motion Refinement**: Reduces jitter, fixes foot-sliding, and produces smooth animations
+- **🎭 Output**: High-quality `.vmd` motion files ready for MMD or Blender
+- **🔄 Real-time Preview**: Live 3D preview of generated motion on PMX models
 
-### macOS (.icns)
+## 🚀 Key Features
 
-- Size: 512x512 pixels
-- Format: ICNS
-- Used for: Application bundle, dock
+- **Multi-AI Backend**: Supports MediaPipe, VIBE, and other state-of-the-art pose estimation models
+- **GPU Acceleration**: CUDA/MPS support with CPU fallback
+- **Advanced Refinement**: Outlier suppression, temporal smoothing, foot contact detection
+- **Real-time 3D Preview**: See your motion applied to MMD models instantly
+- **Cross-platform**: Windows, macOS, and Linux support
+- **Professional Quality**: Motion refinement pipeline for smooth, natural animations
 
-### Linux (.png)
+## 🛠️ Technology Stack
 
-- Size: 512x512 pixels
-- Format: PNG with transparency
-- Used for: Application menu, window manager
+- **Frontend**: Electron + React + Three.js + MMDLoader
+- **Backend**: Python + FastAPI + PyTorch
+- **AI Models**: MediaPipe, VIBE, HybrIK-X for pose estimation
+- **3D Graphics**: Three.js with MMD model support
+- **Motion Processing**: Advanced filtering and IK-based refinement
 
-## Creating Icons
+## 🎬 Pipeline Overview
 
-You can use online tools like:
+1. **Decode** → Extract frames from video/webcam
+2. **2D Pose** → Detect human pose keypoints
+3. **3D Lift** → Convert 2D poses to 3D motion
+4. **Refine** → Apply smoothing, contact detection, and motion polish
+5. **Retarget** → Map to MMD bone structure
+6. **Export** → Generate `.vmd` files for MMD/Blender
 
-- [favicon.io](https://favicon.io/favicon-generator/)
-- [icoconvert.com](https://icoconvert.com/)
-- Or design tools like GIMP, Photoshop, Figma
+## 🎯 Target Users
 
-## Temporary Solution
+- **MMD Creators** who want motion capture from ordinary videos without expensive mocap suits
+- **Blender Artists** who need quick `.vmd` animations from reference footage
+- **Content Creators** looking to animate characters with real human motion
 
-For now, the build will work without icons, but they're recommended for a professional appearance.
+## 📋 Current Status
+
+This project is **actively under development**. Current focus areas:
+
+- ✅ Basic pose detection and 3D preview working
+- 🚧 Improving animation smoothness and responsiveness
+- 🚧 Enhanced PMX model loading and bone mapping
+- 🚧 Multi-model AI integration and optimization
+- 🔄 Real-time parameter tuning and quality controls
+
+## 🤝 Contributing
+
+This is my first time creating an .exe application, so I'm learning as I go! The project is publicly available on GitHub, so contributions, bug reports, and suggestions are very welcome.
+
+**Note**: Please ensure environment variables and secrets are not exposed in contributions.
+
+## 📚 References
+
+- [OpenMMD](https://github.com/peterljq/OpenMMD) - Main reference for MMD integration
+- [web-mmd](https://github.com/culdo/web-mmd) - 3D preview implementation reference
+
+## 📄 License
+
+MIT License - See LICENSE file for details
+
+---
+
+_VMDify: From video to VMD — smooth and simple._
