@@ -20,7 +20,7 @@ const App = () => {
     const [customModel, setCustomModel] = useState(null); // { modelUrl, urlMap, displayName }
     
     // PMX model path (default or user-chosen)
-    const modelPath = (customModel && customModel.modelUrl) ? customModel.modelUrl : '/models/SakamataAlter.pmx';
+    const modelPath = (customModel && customModel.modelUrl) ? customModel.modelUrl : '/models/Second%20Test/PMX/MMD_STD.pmx';
 
     const handleVideoSelected = (file) => {
         console.log('Video selected:', file.name);

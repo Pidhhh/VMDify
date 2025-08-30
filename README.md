@@ -73,5 +73,3 @@ This is my first time creating an .exe application, so I'm learning as I go! The
 MIT License - See LICENSE file for details
 
 ---
-
-_VMDify: From video to VMD — smooth and simple._
